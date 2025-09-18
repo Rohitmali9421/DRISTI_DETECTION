@@ -4,12 +4,13 @@ from PIL import Image
 import io
 import logging
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)
 logging.basicConfig(level=logging.INFO)
 
-# Load YOLOv8
+# Load YOLOv8 model
 model = YOLO("yolov8n.pt")
 app.logger.info("Model loaded successfully!")
 
@@ -91,4 +92,6 @@ def detect_objects():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Render provides PORT environment variable
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
