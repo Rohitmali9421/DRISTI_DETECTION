@@ -6,25 +6,35 @@ import logging
 from flask_cors import CORS
 import os
 
+# ---------------- Flask App Setup ----------------
 app = Flask(__name__)
 CORS(app)
 logging.basicConfig(level=logging.INFO)
 
-# Load YOLOv8 model
-model = YOLO("yolov8n.pt")
-app.logger.info("Model loaded successfully!")
+# ---------------- Load YOLOv8 Model ----------------
+try:
+    model = YOLO("yolov8n.pt")
+    app.logger.info("✅ YOLOv8 model loaded successfully!")
+except Exception as e:
+    app.logger.error(f"❌ Failed to load YOLO model: {e}", exc_info=True)
+    raise e
 
+
+# ---------------- Detection Route ----------------
 @app.route("/detect", methods=["POST"])
 def detect_objects():
     if "file" not in request.files:
         return jsonify({"error": "No image provided"}), 400
 
     image_file = request.files["file"]
-    image_bytes = image_file.read()
-    image = Image.open(io.BytesIO(image_bytes))
-    width, height = image.size
 
     try:
+        # Load image
+        image_bytes = image_file.read()
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        width, height = image.size
+
+        # Run YOLO detection
         results = model(image)
         descriptions = []
         detected_objects = []
@@ -50,7 +60,7 @@ def detect_objects():
                     position = "straight ahead"
 
                 # ---- DISTANCE ESTIMATION ----
-                height_ratio = obj_height / height  # better than area
+                height_ratio = obj_height / height
                 if height_ratio > 0.6:
                     distance = "very close"
                 elif height_ratio > 0.3:
@@ -68,7 +78,6 @@ def detect_objects():
         # ---- PRIORITIZE HUMANS ----
         human_desc = [d for obj, d in descriptions if obj == "person"]
         other_desc = [d for obj, d in descriptions if obj != "person"]
-
         ordered_desc = human_desc + other_desc
 
         # ---- COMBINE INTO A MESSAGE ----
@@ -87,11 +96,12 @@ def detect_objects():
         })
 
     except Exception as e:
-        app.logger.error(f"Error: {e}", exc_info=True)
+        app.logger.error(f"Error during detection: {e}", exc_info=True)
         return jsonify({"error": "Error processing image"}), 500
 
 
+# ---------------- Start Server ----------------
 if __name__ == "__main__":
-    # Render provides PORT environment variable
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    port = int(os.environ.get("PORT", 10000))  # Render sets PORT
+    app.logger.info(f"🚀 Starting server on port {port}...")
+    app.run(host="0.0.0.0", port=port, debug=False)
